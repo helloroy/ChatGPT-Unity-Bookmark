@@ -1,0 +1,98 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using UnityEditor;
+using UnityEditorInternal;
+using UnityEngine;
+
+public class BookmarkWindow : EditorWindow
+{
+    // Subclass to hold bookmarks list for serialization to JSON
+    [Serializable]
+    private class BookmarkData
+    {
+        public List<UnityEngine.Object> bookmarks = new List<UnityEngine.Object>();
+    }
+
+    private BookmarkData data = new BookmarkData(); // Instantiate bookmark data
+    private ReorderableList list; // Instantiate ReorderableList for bookmark list
+
+    private const string saveFileName = "bookmarks.json"; // Name of file to save bookmarks
+    private string saveFilePath; // Path to save bookmarks file
+
+    [MenuItem("Window/Bookmark Manager")]
+    public static void ShowWindow()
+    {
+        GetWindow<BookmarkWindow>("Bookmark Manager"); // Create Bookmark Manager window
+    }
+
+    private void OnEnable()
+    {
+        // Create full file path for bookmarks file in project's persistent data path
+        saveFilePath = Path.Combine(Application.persistentDataPath, saveFileName);
+
+        LoadBookmarks(); // Load bookmarks from JSON file
+
+        // Instantiate ReorderableList for bookmark list
+        list = new ReorderableList(data.bookmarks, typeof(UnityEngine.Object), true, true, true, true);
+
+        // Draw the header label for the bookmark list
+        list.drawHeaderCallback = (Rect rect) =>
+        {
+            EditorGUI.LabelField(rect, "Bookmarks");
+        };
+
+        // Draw the elements (bookmarks) in the list
+        list.drawElementCallback = (Rect rect, int index, bool isActive, bool isFocused) =>
+        {
+            var bookmark = data.bookmarks[index];
+
+            // Draw a field for the bookmark object and update the bookmark list with any changes
+            var assetLabelRect = new Rect(rect.x, rect.y, rect.width, EditorGUIUtility.singleLineHeight);
+            bookmark = EditorGUI.ObjectField(assetLabelRect, bookmark, typeof(UnityEngine.Object), false);
+            data.bookmarks[index] = bookmark;
+        };
+
+        // Add a new null bookmark to the list when the add button is clicked
+        list.onAddCallback = (ReorderableList l) =>
+        {
+            data.bookmarks.Add(null);
+        };
+
+        // Remove the selected bookmark from the list when the remove button is clicked
+        list.onRemoveCallback = (ReorderableList l) =>
+        {
+            data.bookmarks.RemoveAt(l.index);
+        };
+    }
+
+    private void OnGUI()
+    {
+        EditorGUI.BeginChangeCheck();
+
+        // Draw the bookmark list using the ReorderableList
+        list.DoLayoutList();
+
+        if (EditorGUI.EndChangeCheck())
+        {
+            SaveBookmarks(); // Save bookmarks to JSON file when the bookmark list is changed
+        }
+    }
+
+    private void SaveBookmarks()
+    {
+        // Serialize bookmark data to JSON and write to file
+        string bookmarksJson = JsonUtility.ToJson(data);
+        File.WriteAllText(saveFilePath, bookmarksJson);
+    }
+
+    private void LoadBookmarks()
+    {
+        // If bookmarks file exists, deserialize JSON to bookmark data
+        if (File.Exists(saveFilePath))
+        {
+            string bookmarksJson = File.ReadAllText(saveFilePath);
+            data = JsonUtility.FromJson<BookmarkData>(bookmarksJson);
+        }
+    }
+}
